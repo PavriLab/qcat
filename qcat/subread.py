@@ -77,12 +77,42 @@ def partitionRead(read, partitions, subReads, linkerMargin, linkerSize, level = 
                 subReads.append(SubRead(read, quality, level, clade))
 
 
+usage = "Python command-line tool for splitting ligated Oxford Nanopore reads from FASTQ files"
+
+parser = ArgumentParser(description=usage,
+                        formatter_class=RawDescriptionHelpFormatter)
+parser.add_argument("-V", '--version',
+                    action='version',
+                    version='%(prog)s ' + __version__)
+parser.add_argument("--stats",
+                    dest="STATS",
+                    action='store_true',
+                    help="Only run stats")
+parser.add_argument("-f", "--fastq",
+                    type=str,
+                    dest="fastq",
+                    required=True,
+                    help="Barcoded read file")
+parser.add_argument('-b', "--barcodes",
+                    dest="barcodes",
+                    type=str,
+                    required=True,
+                    help="qcaget will use barcodes from this file")
+parser.add_argument('-o', "--output",
+                    dest="output",
+                    type=str,
+                    required=True,
+                    help="File qcaget stats will be writen to ")
+
+args = parser.parse_args()
+
+
 detector = factory(mode="simple",
                    min_quality=60,
-                   kit="/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/barcodes/barcodes_simple.fa")
+                   #kit="/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/barcodes/barcodes_simple.fa")
+                   kit=args.barcodes)
 
-
-read = "TCATGATATGCTTCGTTCCGAATTTACGTATTGCTTGGGCTAGATATCCTCTACGGGCGACTACAAGCAGGAGCATCGACACTCTGAAGCCAAGGCCGATGGCGATTCACGGAGCTCTGCAGGGCTAAGTCCTGCTCGAAGGAGGCGGGGACCACGGGCGGCTGCTGGTCAGGCAGGCGTCACTGATAGTAGGGAGTCCACGCGTACCCTATAGTCTGACGACTACAAACGGAATCGAGAGGATATCTGAACTCCAATTGGAGAAGTAGAACGAACGACTACAAACCTGGAGATCGACCTCTGAAGCCAAGGAGCCGATGGCGATTCCTGGGCGTCTGAGGCTAAGTCCCTCTCCCGGGGAGAGCAGACTCCGGAGCAGCTGCTGGTCAGCGAGCGTCACTGACTATAGGGGAGTCCACGCGTGCCCTATAGTCACAGACGACTACAAACGGAATCGATCTATACTCCAATTGGTAGTTTGTATGAGAGACGAACGACTACAAACAGGATCAAGCCTCTGACCAAGGCCGGTGGCGATTCCTGGGCATCTGCTGAGGCTAGAGTCCTGCTCATGAAGGAGGCGGGGACTCGGAGCAGCTGCTGGTCCGACAGAGCGTCACCACGCGTGCCCTATAATTACGAACGGCTACAAACAGAATCGACTCCTTACACAAACTACCCAGAACTACTGCACCAACGAACTGACTACAAAACGGAATCGACCTCTGAAGCCAAGGCCGATGGCGATTCCTGGGCGTCTGCAGGGCTAAGTCCCTGCTCGAAGAGCTGAGGACTCGGAGCAGCTCACTAATTCCGACGAGCGTCACCCACGCGTGCCCTATAGTCACGGGCGACTACAAACGGAATCGATATACGGCGTTCTGGCAGATTTGTAGAGACGAACTGACTACAAACGGGAATCGACCTCGGCAAGGCCGATGGCGATTCCTGGGCGTCTGCGGGCTAAGTCCCTGCTCGAAGGAGAGCGGGGACTCCGGGACAGCTGCTAGTCCGACGAGCGTCACCCACGCATTGCCCTAGGAAGAGAGATGCAGACGACTACAAGCGGAATCGACTCCTTACAAACTACCAGAACTTTACTGCATAACAGACGACTACAAGCAGGACGGCCTCTGAAGCCAAGGCCGATGGCGATTTCACAGGCGTCTGCAGAATCCCTGCTCGAAGGAAGCGGGGACTCGGAGCAGCTGCTAGTCCGACGAGCGTCACTGATAGTAGGAAGTAAAAAGAGTGCGTCTCTCCCCCAACCCGCACACACACACACACACACACACACACACACACACACACACAGAGCCCCGAGGCAGATGTAAACCGTAGAGCTAGCTGAGATGCCAAACCGTAGACCTCTGGCAGTGCTGATAAACCTAAGCTACCTCTGGATTGGCTGTGGAGTCTCCCATCCTGGGTGATACCCAGAAGGCATGCGTGCATGTCCCGCGTGCCCTATGGTCACACAGGAACTGACTACAAGCGAATCGATATGCACAGTGAGAAGTTCTGGGTTTGTGTAAGGGAGTCGATTCCGTTTGTGATCGTCTGTGACTATAGGGCACGCGTGGAGGCTATACAGCGAACACCCTGTATCTCAAACAAACAGTTGACCCCTTTGCATGCATGAGCCCCATTGTGGGTTCTCAGGAAGTATCGACTGGACATGGATTACAGGTCCCCCTTGCTTCTCATTCTGCGGGCCAAGTGTCTTGGAAGTTCGGCTCACACAGGCACTTCGGCCTGAAATGAGCTCAGGGTCCATGTCAGCTACGAACACAATGAAACAAGGAGCTCAGCTGTTTGTTTGAAGGCGGGAATGATACTTCTGTGCCCTATAGTACGACGACTACAAACGGAATCGACTCCTTACACAAACTCCCAGAACTTCTGCATATCGATTCCGTTTGTAGTCGTCTCTTCTAGGGCACGCGTGGGTATCCTCATCTTTAAACTCCAGTTAACTTCTAAATACTTCCAGCAGAGCCCTGGGTGTTGGGTAGAGGTGCACACGTGTTCTCATGTCTCAAGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGGTTGGGGGGGAGGCATGCGCTCTTTCCCTACTATGTTGACGCTGGCGTCGGACAACAGCTGCTCGGAATTTCAGCGACGAGGACAGCCCCTGCGCCAGGAATCGCCTCGGCCTTGGCTTCCAGAGGTCGATTCCGTTTTGTAGTCTAAAAATCTGTTATGCAGTAGTTCTGGTAGTTTGTGTAAGGGAGTCGATTCCGTTTGTAGTCGTCCTGTGACTATGAGGGCACGCGTGGGTGACGCTCGTCGGACTAGCAGCTGCTCCAGTCCCCCGCCTCCTTCGAGCAGGGACTTAGCCCTGCGACGCCCGAATCGCCATCGGCCTTGAAGGTCGATTCCGTTTGTAGTCGTCTGTTACTCCTTAAAGATCTGCCAGAACTACTGCATATCGATTCCGTTTGTAGTCGTCTGTGACTATAAGGCTGAGCCTGGCGCAGCGCGACACAATCACAGACCACTCCCCTTCAGCATGTACTTCCAAGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGGTTGGGGGAAGGCACTGCGCTCTTTTGCTCCTACCTCGGTGACGCTCGTCGGACTAGCAGCTGCTTGAGTCCGCCTCGCGAGCAGGGACTTGGCCCTGCGACGCCCAGGAATCGCCGTGGCCTTGGCTTCCAGAGGTCGATTCCGTTTGTAATGTTTATGCAGTAGTTCTGGAGTTTGTGTAAGGAGTCGATTCCGTTTGTAGTCGTCTGTGACTATAGGGCACGCGTGGTGACAGCTCGTCGGACTAGCAGCTGCTCCGAGTCCCCGCCTCCTTCGAGCGAGGACTTAGCCCTGCAGACCCTTTAGAATCGCATCGTGGCTTCAGAGATTCGATTCCGTTTGTAGTCGTCTGTCTCCTTACACAAACTACCAATTGGAGAAATGAACTCGATTCCGTTTGTAGTCGTCGGTGACTATGGGCGCGTGAATTTGACGCTCGTCGGACTAGCAGCTGCTCGAGTCCCCGCCTCCTTCGAGCAGGGACTTAGCCCTGCAGACTGCCAGGAATCGCCATCGGCTGATTCCGTTTGTAGTCGTCTGTTCTACTTTCTCAATTGGAGTTCAGATGCTCTCTTCGATTCCGTTTGTAGTCGTCTGTGACTATAGGGCACGCGGTGACACCGTCGGACTAGCAGCTGCTCCAGTCCCCGCACCTCCGCTCGAGCAGGGACAGCCCTGCGAACGCCCAGGAATCGCCATCGGCCTTGGCCCAAGAGGTCGATTCCGTTTGTAGTCGTCTGTAGAGGATGCTGAACTAGCAATACGTGTATG"
+statsFile = open(args.output,"w")
 
 linkerMargin = False
 linkerSize = 12
@@ -90,35 +120,13 @@ junkFilterSize = 40
 
 output_files = {}
 
-#res = detector.scan(read, None, None, None)
-
-#partitions = {}
-#subReads = []
-#partitionRead(read, partitions, subReads, linkerMargin, linkerSize)
-
-#detectedBc = sorted(partitions.items(), key=lambda kv: kv[1], reverse=True)[0][0]
-
-
-
-#print(partitions)
-#print(subReads)
-
-#name = "test"
-#comment = "test"
-#quality = "&%&%&%"
-
-# for subRead in subReads:
-#
-#     if fastq:
-#         print("@" + name + " " + comment, subRead, "+", quality, sep="\n",
-#               file=out_file)
-#     else:
-#         print(">" + name + " " + comment, subRead, sep="\n",
-#               file=out_file)
-
 fastq = True
 
-with pysam.FastxFile('/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/guppy/nanopore_multifail.fq.gz') as handle:
+bcDetectionStats = dict()
+subreadStats = dict()
+
+#with pysam.FastxFile('/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/ligation_2/guppy/nanopore_ligation_2.fq.gz') as handle:
+with pysam.FastxFile(args.fastq) as handle:
     for read in handle:
         partitions = {}
         subReads = []
@@ -130,7 +138,13 @@ with pysam.FastxFile('/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/gup
             detectedBc = sorted(partitions.items(), key=lambda kv: kv[1], reverse=True)[0][0]
             detectedBc = re.sub("_.*","",detectedBc)
 
+        if detectedBc not in bcDetectionStats :
+            bcDetectionStats[detectedBc] = 0
+        bcDetectionStats[detectedBc] += 1
+
         out_file = get_output_file(output_files, '.', detectedBc, fastq)
+
+        subReadCount = 0
 
         for subRead in subReads:
 
@@ -140,3 +154,19 @@ with pysam.FastxFile('/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/gup
             else:
                 print(">" + name + " " + comment, subRead, sep="\n",
                       file=out_file)
+
+            subReadCount += 1
+
+        if subReadCount not in subreadStats:
+            subreadStats[subReadCount] = 0
+        subreadStats[subReadCount] += 1
+
+print("Barcode\tCount",file=statsFile)
+for bc in bcDetectionStats:
+    print(bc + "\t" + str(bcDetectionStats[bc]),file=statsFile)
+print(file=statsFile)
+print("Detected subreads\tCount",file=statsFile)
+for count in sorted(subreadStats):
+    print(str(count) + "\t" + str(subreadStats[count]),file=statsFile)
+
+statsFile.close()
