@@ -76,6 +76,88 @@ def partitionRead(read, partitions, subReads, linkerMargin, linkerSize, level = 
         if len(read) > 0:
                 subReads.append(SubRead(read, quality, level, clade))
 
+def runLigationQcat():
+    statsFile = open(args.output,"w")
+
+    linkerMargin = False
+    linkerSize = 12
+    junkFilterSize = 40
+
+    output_files = {}
+
+    fastq = True
+
+    bcDetectionStats = dict()
+    subreadStats = dict()
+
+    with pysam.FastxFile(args.fastq) as handle:
+        for read in handle:
+            partitions = {}
+            subReads = []
+            partitionRead(read.sequence, partitions, subReads, linkerMargin, linkerSize, 0, "C", read.quality)
+
+            detectedBc = "none"
+
+            if partitions:
+                detectedBc = sorted(partitions.items(), key=lambda kv: kv[1], reverse=True)[0][0]
+                detectedBc = re.sub("_.*","",detectedBc)
+
+            if detectedBc not in bcDetectionStats :
+                bcDetectionStats[detectedBc] = 0
+            bcDetectionStats[detectedBc] += 1
+
+            out_file = get_output_file(output_files, '.', detectedBc, fastq)
+
+            subReadCount = 0
+
+            for subRead in subReads:
+
+                if fastq:
+                    print("@" + read.name + " " + read.comment + " level=" + str(subRead.level) + " clade=" + subRead.clade, subRead.sequence, "+", subRead.quality, sep="\n",
+                          file=out_file)
+                else:
+                    print(">" + name + " " + comment, subRead, sep="\n",
+                          file=out_file)
+
+                subReadCount += 1
+
+            if subReadCount not in subreadStats:
+                subreadStats[subReadCount] = 0
+            subreadStats[subReadCount] += 1
+
+    print("Barcode\tCount",file=statsFile)
+    for bc in bcDetectionStats:
+        print(bc + "\t" + str(bcDetectionStats[bc]),file=statsFile)
+    print(file=statsFile)
+    print("Detected subreads\tCount",file=statsFile)
+    for count in sorted(subreadStats):
+        print(str(count) + "\t" + str(subreadStats[count]),file=statsFile)
+
+    statsFile.close()
+
+def runStats():
+    statsFile = open(args.output,"w")
+
+    readCount = 0
+    linkerStats = dict()
+
+    with pysam.FastxFile(args.fastq) as handle:
+        for read in handle:
+
+            res = detector.scan(read.sequence, None, None, None)
+
+            if res['barcode'] :
+                if not res['barcode'].name in linkerStats:
+                    linkerStats[res['barcode'].name] = 0
+                linkerStats[res['barcode'].name] += 1
+
+            readCount += 1
+
+    print("Linker\tCount",file=statsFile)
+    print("Total\t" + str(readCount),file=statsFile)
+    for stat in linkerStats:
+        print(stat + "\t" + str(linkerStats[stat]),file=statsFile)
+    statsFile.close()
 
 usage = "Python command-line tool for splitting ligated Oxford Nanopore reads from FASTQ files"
 
@@ -102,71 +184,17 @@ parser.add_argument('-o', "--output",
                     dest="output",
                     type=str,
                     required=True,
-                    help="File qcaget stats will be writen to ")
+                    help="File qcaget stats will be written to ")
 
 args = parser.parse_args()
 
 
 detector = factory(mode="simple",
                    min_quality=60,
-                   #kit="/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/multifail/barcodes/barcodes_simple.fa")
                    kit=args.barcodes)
 
-statsFile = open(args.output,"w")
+if args.STATS:
+    runStats()
+else :
 
-linkerMargin = False
-linkerSize = 12
-junkFilterSize = 40
-
-output_files = {}
-
-fastq = True
-
-bcDetectionStats = dict()
-subreadStats = dict()
-
-#with pysam.FastxFile('/groups/pavri/bioinfo/mihaela/TCSeq/nanopore/ligation_2/guppy/nanopore_ligation_2.fq.gz') as handle:
-with pysam.FastxFile(args.fastq) as handle:
-    for read in handle:
-        partitions = {}
-        subReads = []
-        partitionRead(read.sequence, partitions, subReads, linkerMargin, linkerSize, 0, "C", read.quality)
-
-        detectedBc = "none"
-
-        if partitions:
-            detectedBc = sorted(partitions.items(), key=lambda kv: kv[1], reverse=True)[0][0]
-            detectedBc = re.sub("_.*","",detectedBc)
-
-        if detectedBc not in bcDetectionStats :
-            bcDetectionStats[detectedBc] = 0
-        bcDetectionStats[detectedBc] += 1
-
-        out_file = get_output_file(output_files, '.', detectedBc, fastq)
-
-        subReadCount = 0
-
-        for subRead in subReads:
-
-            if fastq:
-                print("@" + read.name + " " + read.comment + " level=" + str(subRead.level) + " clade=" + subRead.clade, subRead.sequence, "+", subRead.quality, sep="\n",
-                      file=out_file)
-            else:
-                print(">" + name + " " + comment, subRead, sep="\n",
-                      file=out_file)
-
-            subReadCount += 1
-
-        if subReadCount not in subreadStats:
-            subreadStats[subReadCount] = 0
-        subreadStats[subReadCount] += 1
-
-print("Barcode\tCount",file=statsFile)
-for bc in bcDetectionStats:
-    print(bc + "\t" + str(bcDetectionStats[bc]),file=statsFile)
-print(file=statsFile)
-print("Detected subreads\tCount",file=statsFile)
-for count in sorted(subreadStats):
-    print(str(count) + "\t" + str(subreadStats[count]),file=statsFile)
-
-statsFile.close()
+    runLigationQcat()
