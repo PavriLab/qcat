@@ -76,6 +76,31 @@ def partitionRead(read, partitions, subReads, linkerMargin, linkerSize, level = 
         if len(read) > 0:
                 subReads.append(SubRead(read, quality, level, clade))
 
+
+def scanRead(read, partitions, quality = None):
+
+    res = detector.scan(read, None, None, None)
+
+    if res['barcode'] :
+
+        partitions.append(res['barcode'].name)
+
+        bcEnd = res['adapter_end'] + 1
+        bcStart = res['adapter_end'] - len(res['barcode'].sequence) + 1
+
+        left = read[:bcStart]
+        right = read[bcEnd:]
+
+        leftQual = None
+        rightQual = None
+
+        if quality:
+            leftQual = quality[:bcStart]
+            rightQual = quality[bcEnd:]
+
+        scanRead(left, partitions, leftQual)
+        scanRead(right, partitions, rightQual)
+
 def runLigationQcat():
     statsFile = open(args.output,"w")
 
@@ -159,6 +184,41 @@ def runStats():
         print(stat + "\t" + str(linkerStats[stat]),file=statsFile)
     statsFile.close()
 
+def runScan():
+    statsFile = open(args.output,"w")
+
+    readCount = 0
+    linkerStats = dict()
+    linkerStats["EMPTY"] = 0
+    linkerStats["TOTAL"] = 0
+
+    with pysam.FastxFile(args.fastq) as handle:
+        for read in handle:
+
+            barcodes = []
+
+            scanRead(read.sequence, barcodes)
+
+            if len(barcodes) > 0:
+                for barcode in barcodes:
+                    if not barcode in linkerStats:
+                        linkerStats[barcode] = 0
+                    linkerStats[barcode] += 1
+            else :
+                linkerStats["EMPTY"] += 1
+
+            linkerStats["TOTAL"] += 1
+
+            if linkerStats["TOTAL"] % 100 == 0:
+                progressString = "Processed " + str(linkerStats["TOTAL"]) + " reads..."
+                print(f'{progressString}\r', end="", file=sys.stderr)
+
+    print(file=sys.stderr)
+    print("Linker\tCount",file=statsFile)
+    for stat in linkerStats:
+        print(stat + "\t" + str(linkerStats[stat]),file=statsFile)
+    statsFile.close()
+
 usage = "Python command-line tool for splitting ligated Oxford Nanopore reads from FASTQ files"
 
 parser = ArgumentParser(description=usage,
@@ -170,6 +230,10 @@ parser.add_argument("--stats",
                     dest="STATS",
                     action='store_true',
                     help="Only run stats")
+parser.add_argument("--scan",
+                    dest="SCAN",
+                    action='store_true',
+                    help="Scan full reads")
 parser.add_argument("-f", "--fastq",
                     type=str,
                     dest="fastq",
@@ -193,8 +257,11 @@ detector = factory(mode="simple",
                    min_quality=60,
                    kit=args.barcodes)
 
+sys.setrecursionlimit(10000)
+
 if args.STATS:
     runStats()
+elif args.SCAN:
+    runScan()
 else :
-
     runLigationQcat()
