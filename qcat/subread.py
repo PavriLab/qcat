@@ -101,6 +101,27 @@ def scanRead(read, partitions, quality = None):
         scanRead(left, partitions, leftQual)
         scanRead(right, partitions, rightQual)
 
+
+def bipartRead(read, bcOrder):
+
+    res = detector.scan(read, None, None, None)
+
+    if res['barcode'] :
+
+        bcEnd = res['adapter_end'] + 1
+        bcStart = res['adapter_end'] - len(res['barcode'].sequence) + 1
+
+        left = read[:bcStart]
+        right = read[bcEnd:]
+
+        bcOrder[bcStart] = dict()
+        bcOrder[bcStart]['barcode'] = re.sub("_.*","",res['barcode'].name)
+        bcOrder[bcStart]['end'] = res['adapter_end'] + 1
+
+        bipartRead(left, bcOrder)
+        bipartRead(right, bcOrder)
+
+
 def runLigationQcat():
     statsFile = open(args.output,"w")
 
@@ -219,6 +240,98 @@ def runScan():
         print(stat + "\t" + str(linkerStats[stat]),file=statsFile)
     statsFile.close()
 
+def splitByBarcodeChunk(read, bcOrder, quality = None) :
+    curBc = ""
+    start = -1
+    end = -1
+
+    for curStart in sorted(bcOrder.keys()):
+        if (curBc == ""):
+            curBc = bcOrder[curStart]['barcode']
+        if curBc != bcOrder[curStart]['barcode'] :
+            start = curStart
+            end = bcOrder[curStart]['end']
+            break
+
+    leftQual = None
+    rightQual = None
+
+    if start >= 0:
+        left = read[:start]
+        right = read[start:]
+        if quality:
+            leftQual = quality[:start]
+            rightQual = quality[start:]
+        return [(left, leftQual), (right, rightQual)]
+    else :
+        return [(read, quality)]
+
+
+def runBipart():
+
+    statsFile = open(args.output,"w")
+
+    linkerMargin = False
+    linkerSize = 12
+    junkFilterSize = 40
+
+    output_files = {}
+
+    fastq = True
+
+    bcDetectionStats = dict()
+    subreadStats = dict()
+
+    with pysam.FastxFile(args.fastq) as handle:
+        for read in handle:
+            bcOrder = dict()
+            bipartRead(read.sequence, bcOrder)
+            biparts = splitByBarcodeChunk(read.sequence, bcOrder,  read.quality)
+
+            for bipart in biparts:
+                partitions = {}
+                subReads = []
+                partitionRead(bipart[0], partitions, subReads, linkerMargin, linkerSize, 0, "C", bipart[1])
+
+                detectedBc = "none"
+
+                if partitions:
+                    detectedBc = sorted(partitions.items(), key=lambda kv: kv[1], reverse=True)[0][0]
+                    detectedBc = re.sub("_.*","",detectedBc)
+
+                if detectedBc not in bcDetectionStats :
+                    bcDetectionStats[detectedBc] = 0
+                bcDetectionStats[detectedBc] += 1
+
+                out_file = get_output_file(output_files, '.', detectedBc, fastq)
+
+                subReadCount = 0
+
+                for subRead in subReads:
+
+                    if fastq:
+                        print("@" + read.name + " " + read.comment + " level=" + str(subRead.level) + " clade=" + subRead.clade, subRead.sequence, "+", subRead.quality, sep="\n",
+                              file=out_file)
+                    else:
+                        print(">" + name + " " + comment, subRead, sep="\n",
+                              file=out_file)
+
+                    subReadCount += 1
+
+                if subReadCount not in subreadStats:
+                    subreadStats[subReadCount] = 0
+                subreadStats[subReadCount] += 1
+
+        print("Barcode\tCount",file=statsFile)
+        for bc in bcDetectionStats:
+            print(bc + "\t" + str(bcDetectionStats[bc]),file=statsFile)
+        print(file=statsFile)
+        print("Detected subreads\tCount",file=statsFile)
+        for count in sorted(subreadStats):
+            print(str(count) + "\t" + str(subreadStats[count]),file=statsFile)
+
+        statsFile.close()
+
 usage = "Python command-line tool for splitting ligated Oxford Nanopore reads from FASTQ files"
 
 parser = ArgumentParser(description=usage,
@@ -234,6 +347,10 @@ parser.add_argument("--scan",
                     dest="SCAN",
                     action='store_true',
                     help="Scan full reads")
+parser.add_argument("--bipart",
+                    dest="BIPART",
+                    action='store_true',
+                    help="Bipart reads before ligation")
 parser.add_argument("-f", "--fastq",
                     type=str,
                     dest="fastq",
@@ -263,5 +380,7 @@ if args.STATS:
     runStats()
 elif args.SCAN:
     runScan()
+elif args.BIPART:
+    runBipart()
 else :
     runLigationQcat()
