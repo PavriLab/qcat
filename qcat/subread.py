@@ -242,8 +242,9 @@ def runScan():
 
 def splitByBarcodeChunk(read, bcOrder, quality = None) :
     curBc = ""
-    start = -1
-    end = -1
+
+    startList = list()
+    readList = list()
 
     for curStart in sorted(bcOrder.keys()):
         if (curBc == ""):
@@ -251,20 +252,36 @@ def splitByBarcodeChunk(read, bcOrder, quality = None) :
         if curBc != bcOrder[curStart]['barcode'] :
             start = curStart
             end = bcOrder[curStart]['end']
-            break
+            startList.append((start, end))
+            curBc = bcOrder[curStart]['barcode']
 
     leftQual = None
     rightQual = None
 
-    if start >= 0:
-        left = read[:start]
-        right = read[start:]
-        if quality:
-            leftQual = quality[:start]
-            rightQual = quality[start:]
-        return [(left, leftQual), (right, rightQual)]
+    if len(startList) > 0:
+        prevEnd = 0
+        for start, end in startList:
+            left = read[prevEnd:start]
+            if quality:
+                leftQual = quality[prevEnd:start]
+            prevEnd = start
+            readList.append((left, leftQual))
+        right = read[prevEnd:]
+        rightQual = quality[prevEnd:]
+        readList.append((right, rightQual))
     else :
-        return [(read, quality)]
+        readList.append((read, quality))
+
+    return readList
+    # if start >= 0:
+    #     left = read[:start]
+    #     right = read[start:]
+    #     if quality:
+    #         leftQual = quality[:start]
+    #         rightQual = quality[start:]
+    #     return [(left, leftQual), (right, rightQual)]
+    # else :
+    #     return [(read, quality)]
 
 
 def runBipart():
