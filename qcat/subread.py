@@ -53,6 +53,7 @@ def partitionRead(read, partitions, subReads, linkerMargin, linkerSize, level = 
         partitions[re.sub("_.*","",res['barcode'].name)] += 1
 
         bcEnd = res['adapter_end'] + 1
+        # TODO: turns negative - check max(0) option
         bcStart = res['adapter_end'] - len(res['barcode'].sequence) + 1
 
         if linkerMargin:
