@@ -1,5 +1,5 @@
-subread
-======
+subread [![DOI](https://zenodo.org/badge/190543385.svg)](https://zenodo.org/badge/latestdoi/190543385)
+======================================================================================================
 
 subread is an extension of the original [qcat](https://github.com/nanoporetech/qcat) Python command-line tool for demultiplexing Oxford Nanopore reads from FASTQ files. We create this separate branch for demultiplexing concatenated subreads separated by barcode-linker pairs mainly utilizing qcat's ***BarcodeScanner*** class to detect ONT simple barcodes - for a full list check [this file](https://raw.githubusercontent.com/nanoporetech/qcat/master/qcat/resources/kits/simple_standard.yml) provided by ONT.
 
