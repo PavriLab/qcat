@@ -141,6 +141,7 @@ def runLigationQcat():
         for read in handle:
             partitions = {}
             subReads = []
+            #print(read.name)
             partitionRead(read.sequence, partitions, subReads, linkerMargin, linkerSize, 0, "C", read.quality)
 
             detectedBc = "none"
@@ -392,7 +393,8 @@ detector = factory(mode="simple",
                    min_quality=60,
                    kit=args.barcodes)
 
-sys.setrecursionlimit(10000)
+#sys.setrecursionlimit(10000)
+sys.setrecursionlimit(10**6)
 
 if args.STATS:
     runStats()
